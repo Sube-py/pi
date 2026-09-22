@@ -43,3 +43,29 @@ describe("selectTools", () => {
 		expect(selected).toEqual([]);
 	});
 });
+
+import { batchTools } from "../examples/extensions/jgent-routing.ts";
+
+describe("batchTools", () => {
+	it("returns one batch when everything fits", () => {
+		const batches = batchTools(tools, 64_000);
+		expect(batches).toEqual([tools]);
+	});
+
+	it("splits so each batch stays within the token budget and drops nothing", () => {
+		const many = Array.from({ length: 10 }, (_, index) => ({
+			id: `tool${index}`,
+			description: "x".repeat(100),
+		}));
+		const batches = batchTools(many, 200);
+
+		expect(batches.length).toBeGreaterThan(1);
+		for (const batch of batches) {
+			expect(batch.length).toBeGreaterThan(0);
+			const request = buildJevRequest("task", batch);
+			const estimated = Math.ceil(JSON.stringify(request).length / 4);
+			expect(estimated).toBeLessThanOrEqual(200);
+		}
+		expect(batches.flat().map((tool) => tool.id)).toEqual(many.map((tool) => tool.id));
+	});
+});

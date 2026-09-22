@@ -48,3 +48,29 @@ export function selectTools(response: JevResponse, threshold: number): string[] 
 		.filter(([, answer]) => answer.noul > threshold)
 		.map(([id]) => id);
 }
+
+/** Rough token estimate. Jev's budget is exact; underestimating density keeps batches safely inside it. */
+function estimateTokens(request: JevRequest): number {
+	return Math.ceil(JSON.stringify(request).length / 4);
+}
+
+/**
+ * Split tools into batches whose Jev request fits within maxTokens.
+ * Each noul is evaluated independently, so unioning the per-batch selections
+ * gives the same result as one call.
+ */
+export function batchTools(tools: JgentTool[], maxTokens: number): JgentTool[][] {
+	const batches: JgentTool[][] = [];
+	let current: JgentTool[] = [];
+	for (const tool of tools) {
+		const candidate = [...current, tool];
+		if (current.length > 0 && estimateTokens(buildJevRequest("", candidate)) > maxTokens) {
+			batches.push(current);
+			current = [tool];
+		} else {
+			current = candidate;
+		}
+	}
+	if (current.length > 0) batches.push(current);
+	return batches;
+}
