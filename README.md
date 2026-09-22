@@ -12,6 +12,25 @@
 
 # Pi Agent Harness
 
+## jgent
+
+This fork routes tool selection through [Jev](https://typesafe.ai), a small
+decision model, so the model no longer carries every tool schema on every
+turn. The model sees two resident tools, `bash` and `need`. When it calls
+`need` with a description of what it is trying to do, jgent asks Jev which of
+the configured tools that requires and enables the selected ones for the next
+turn only. They are removed again at the end of that turn. Tool execution is
+unchanged: selected tools run through pi's normal path.
+
+```bash
+export TYPESAFE_API_KEY=<your key>
+./pi-test.sh -e packages/coding-agent/examples/extensions/jgent.ts
+```
+
+See [packages/coding-agent/examples/extensions/jgent.md](packages/coding-agent/examples/extensions/jgent.md)
+for what the extension changes and its current limits.
+
+
 This is the home of the Pi agent harness project including our self extensible coding agent.
 
 * **[@earendil-works/pi-coding-agent](packages/coding-agent)**: Interactive coding agent CLI
