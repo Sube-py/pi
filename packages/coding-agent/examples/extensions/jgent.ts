@@ -35,7 +35,7 @@ export function createJevRouter(options: JevClientOptions & { maxTokens: number 
 	};
 }
 
-export function jgentExtension(router: JgentRouter): ExtensionFactory {
+export function jgentExtension(router: JgentRouter, skills: JgentTool[] = []): ExtensionFactory {
 	let toolsLoadedForTurn = false;
 
 	return (pi: ExtensionAPI) => {
@@ -47,9 +47,15 @@ export function jgentExtension(router: JgentRouter): ExtensionFactory {
 			parameters: NEED_PARAMETERS,
 			execute: async (_toolCallId, params) => {
 				try {
-					const selected = await router(params.description, registryTools(pi));
+					const catalog = [...registryTools(pi), ...skills];
+					const selected = await router(params.description, catalog);
+					const selectedSkills = selected.filter((id) => skills.some((skill) => skill.id === id));
+					const selectedToolIds = selected.filter((id) => !selectedSkills.includes(id));
 					toolsLoadedForTurn = true;
-					pi.setActiveTools([...RESIDENT_TOOLS, ...selected]);
+					pi.setActiveTools([...RESIDENT_TOOLS, ...selectedToolIds]);
+					for (const skillName of selectedSkills) {
+						pi.sendUserMessage(`/skill:${skillName}`, { deliverAs: "followUp", expandPromptTemplates: true });
+					}
 					const listed = selected.length > 0 ? selected.join(", ") : "nothing";
 					return { content: [{ type: "text", text: `Loaded: ${listed}` }], details: { selected } };
 				} catch (error) {

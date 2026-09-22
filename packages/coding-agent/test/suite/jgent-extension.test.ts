@@ -107,3 +107,28 @@ describe("jgent extension", () => {
 		}
 	});
 });
+
+	it("routes a skill through Jev and delivers its content", async () => {
+		const skills = [{ id: "pdf-tools", description: "Extract text from PDF files" }];
+		let seenIds: string[] = [];
+		const router = async (_description: string, tools: JgentTool[]): Promise<string[]> => {
+			seenIds = tools.map((tool) => tool.id);
+			return ["pdf-tools"];
+		};
+		const harness = await createHarness({ extensionFactories: [jgentExtension(router, skills)] });
+		try {
+			harness.setResponses([
+				() =>
+					fauxAssistantMessage(fauxToolCall("need", { description: "read a pdf" }), { stopReason: "toolUse" }),
+				() => fauxAssistantMessage("done"),
+			]);
+
+			await harness.session.prompt("go");
+
+			expect(seenIds).toContain("pdf-tools");
+			const delivered = harness.session.messages.map((message) => JSON.stringify(message)).join("\n");
+			expect(delivered).toContain("/skill:pdf-tools");
+		} finally {
+			harness.cleanup();
+		}
+	});
