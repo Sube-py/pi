@@ -34,9 +34,7 @@ describe("callJev", () => {
 
 	it("throws with the status when Jev returns an error", async () => {
 		const fetchMock: typeof fetch = async () => jsonResponse({ error: "nope" }, 500);
-		await expect(callJev(request, { apiKey: "secret", fetch: fetchMock, timeoutMs: 1000 })).rejects.toThrow(
-			/500/,
-		);
+		await expect(callJev(request, { apiKey: "secret", fetch: fetchMock, timeoutMs: 1000 })).rejects.toThrow(/500/);
 	});
 
 	it("throws when the request times out", async () => {
