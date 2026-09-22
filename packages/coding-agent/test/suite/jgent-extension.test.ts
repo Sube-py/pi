@@ -1,6 +1,6 @@
 import { fauxAssistantMessage, fauxToolCall, getCurrentTools, type TranscriptContext } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
-import { jgentExtension } from "../../examples/extensions/jgent.ts";
+import { defaultJgentExtension, jgentExtension } from "../../examples/extensions/jgent.ts";
 import type { JgentTool } from "../../examples/extensions/jgent-routing.ts";
 import { createHarness } from "./harness.ts";
 
@@ -108,27 +108,47 @@ describe("jgent extension", () => {
 	});
 });
 
-	it("routes a skill through Jev and delivers its content", async () => {
-		const skills = [{ id: "pdf-tools", description: "Extract text from PDF files" }];
-		let seenIds: string[] = [];
-		const router = async (_description: string, tools: JgentTool[]): Promise<string[]> => {
-			seenIds = tools.map((tool) => tool.id);
-			return ["pdf-tools"];
-		};
-		const harness = await createHarness({ extensionFactories: [jgentExtension(router, skills)] });
-		try {
-			harness.setResponses([
-				() =>
-					fauxAssistantMessage(fauxToolCall("need", { description: "read a pdf" }), { stopReason: "toolUse" }),
-				() => fauxAssistantMessage("done"),
-			]);
+it("routes a skill through Jev and delivers its content", async () => {
+	const skills = [{ id: "pdf-tools", description: "Extract text from PDF files" }];
+	let seenIds: string[] = [];
+	const router = async (_description: string, tools: JgentTool[]): Promise<string[]> => {
+		seenIds = tools.map((tool) => tool.id);
+		return ["pdf-tools"];
+	};
+	const harness = await createHarness({ extensionFactories: [jgentExtension(router, skills)] });
+	try {
+		harness.setResponses([
+			() => fauxAssistantMessage(fauxToolCall("need", { description: "read a pdf" }), { stopReason: "toolUse" }),
+			() => fauxAssistantMessage("done"),
+		]);
 
-			await harness.session.prompt("go");
+		await harness.session.prompt("go");
 
-			expect(seenIds).toContain("pdf-tools");
-			const delivered = harness.session.messages.map((message) => JSON.stringify(message)).join("\n");
-			expect(delivered).toContain("/skill:pdf-tools");
-		} finally {
-			harness.cleanup();
-		}
-	});
+		expect(seenIds).toContain("pdf-tools");
+		const delivered = harness.session.messages.map((message) => JSON.stringify(message)).join("\n");
+		expect(delivered).toContain("/skill:pdf-tools");
+	} finally {
+		harness.cleanup();
+	}
+});
+
+it("builds the default router from TYPESAFE_API_KEY", async () => {
+	process.env.TYPESAFE_API_KEY = "test-key";
+	const harness = await createHarness({ extensionFactories: [defaultJgentExtension()] });
+	try {
+		const seen: string[][] = [];
+		harness.setResponses([
+			(context) => {
+				seen.push(toolNames(context));
+				return fauxAssistantMessage("no tools");
+			},
+		]);
+
+		await harness.session.prompt("hi");
+
+		expect(seen).toEqual([["bash", "need"]]);
+	} finally {
+		delete process.env.TYPESAFE_API_KEY;
+		harness.cleanup();
+	}
+});

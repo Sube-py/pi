@@ -42,8 +42,7 @@ export function jgentExtension(router: JgentRouter, skills: JgentTool[] = []): E
 		pi.registerTool({
 			name: "need",
 			label: "Need",
-			description:
-				"Ask for the tools required to accomplish something. They become available on your next turn.",
+			description: "Ask for the tools required to accomplish something. They become available on your next turn.",
 			parameters: NEED_PARAMETERS,
 			execute: async (_toolCallId, params) => {
 				try {
@@ -90,8 +89,12 @@ export function jgentExtension(router: JgentRouter, skills: JgentTool[] = []): E
 	};
 }
 
-export function defaultJgentExtension(): ExtensionFactory {
+export function defaultJgentExtension(skills: JgentTool[] = []): ExtensionFactory {
 	const apiKey = process.env.TYPESAFE_API_KEY ?? "";
 	const router = createJevRouter({ apiKey, fetch, timeoutMs: 10_000, maxTokens: JEV_TOKEN_BUDGET });
-	return jgentExtension(router);
+	return jgentExtension(router, skills);
+}
+
+export default function jgent(pi: ExtensionAPI): void {
+	defaultJgentExtension()(pi);
 }
