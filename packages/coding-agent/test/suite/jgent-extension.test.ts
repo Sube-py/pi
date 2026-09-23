@@ -1,6 +1,6 @@
 import { fauxAssistantMessage, fauxToolCall, getCurrentTools, type TranscriptContext } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
-import { defaultJgentExtension, jgentExtension } from "../../examples/extensions/jgent.ts";
+import { createLayaRouter, defaultJgentExtension, jgentExtension } from "../../examples/extensions/jgent.ts";
 import type { JgentTool } from "../../examples/extensions/jgent-routing.ts";
 import { createHarness } from "./harness.ts";
 
@@ -149,6 +149,43 @@ it("builds the default router from TYPESAFE_API_KEY", async () => {
 		expect(seen).toEqual([["bash", "need"]]);
 	} finally {
 		delete process.env.TYPESAFE_API_KEY;
+		harness.cleanup();
+	}
+});
+
+it("uses the local Laya router when no TypeSafe key is set", async () => {
+	delete process.env.TYPESAFE_API_KEY;
+	let layaCalls = 0;
+	const callLaya = async (request: { questions: Record<string, unknown> }) => {
+		layaCalls += 1;
+		const answers: Record<string, { type: "noul"; noul: number }> = {};
+		for (const id of Object.keys(request.questions)) {
+			answers[id] = { type: "noul", noul: id === "read" ? 0.9 : 0.1 };
+		}
+		return { answers };
+	};
+	const router = createLayaRouter(callLaya);
+	const harness = await createHarness({ extensionFactories: [jgentExtension(router)] });
+	try {
+		const seen: string[][] = [];
+		harness.setResponses([
+			(context) => {
+				seen.push(toolNames(context));
+				return fauxAssistantMessage(fauxToolCall("need", { description: "read the config" }), {
+					stopReason: "toolUse",
+				});
+			},
+			(context) => {
+				seen.push(toolNames(context));
+				return fauxAssistantMessage("read it");
+			},
+		]);
+
+		await harness.session.prompt("go");
+
+		expect(layaCalls).toBeGreaterThan(0);
+		expect(seen[1]).toContain("read");
+	} finally {
 		harness.cleanup();
 	}
 });

@@ -23,9 +23,12 @@ turn only. They are removed again at the end of that turn. Tool execution is
 unchanged: selected tools run through pi's normal path.
 
 ```bash
-export TYPESAFE_API_KEY=<your key>
 ./pi-test.sh -e packages/coding-agent/examples/extensions/jgent.ts
 ```
+
+Decisions run locally through [Laya](https://github.com/receptron/laya), an
+open-source Jev-compatible model. Set `TYPESAFE_API_KEY` to use the TypeSafe
+Jev API instead.
 
 See [packages/coding-agent/examples/extensions/jgent.md](packages/coding-agent/examples/extensions/jgent.md)
 for what the extension changes and its current limits.

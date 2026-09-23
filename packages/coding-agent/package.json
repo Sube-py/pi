@@ -53,6 +53,7 @@
 		"@earendil-works/pi-agent-core": "^0.87.0",
 		"@earendil-works/pi-ai": "^0.87.0",
 		"@earendil-works/pi-tui": "^0.87.0",
+		"@receptron/laya": "0.1.2",
 		"@silvia-odwyer/photon-node": "0.3.4",
 		"chalk": "6.0.0",
 		"cross-spawn": "7.0.6",

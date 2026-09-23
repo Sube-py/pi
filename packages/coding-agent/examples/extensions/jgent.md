@@ -5,9 +5,14 @@ until it asks for more.
 
 ## Enable
 
-Set `TYPESAFE_API_KEY`, then load the extension:
+Load the extension:
 
     pi -e packages/coding-agent/examples/extensions/jgent.ts
+
+With no `TYPESAFE_API_KEY` set, decisions run locally through
+[Laya](https://github.com/receptron/laya), an open-source Jev-compatible model.
+The first call downloads about 1.7 GB of weights into `~/.cache/receptron-laya`.
+Set `TYPESAFE_API_KEY` to use the TypeSafe Jev API instead.
 
 ## What changes
 

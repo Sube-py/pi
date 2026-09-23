@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { callJev, type JevClientOptions } from "./jgent-client.ts";
+import { callLaya } from "./jgent-laya.ts";
 import { batchTools, buildJevRequest, type JgentTool, selectTools, THRESHOLD } from "./jgent-routing.ts";
 
 export type JgentRouter = (description: string, tools: JgentTool[]) => Promise<string[]>;
@@ -89,10 +90,33 @@ export function jgentExtension(router: JgentRouter, skills: JgentTool[] = []): E
 	};
 }
 
+/**
+ * Laya truncates its state at 512 tokens, so a batch has to stay well under
+ * that or the tools at the end of the listing are silently dropped.
+ */
+const LAYA_TOKEN_BUDGET = 400;
+
 export function defaultJgentExtension(skills: JgentTool[] = []): ExtensionFactory {
-	const apiKey = process.env.TYPESAFE_API_KEY ?? "";
-	const router = createJevRouter({ apiKey, fetch, timeoutMs: 10_000, maxTokens: JEV_TOKEN_BUDGET });
+	const apiKey = process.env.TYPESAFE_API_KEY;
+	const router = apiKey
+		? createJevRouter({ apiKey, fetch, timeoutMs: 10_000, maxTokens: JEV_TOKEN_BUDGET })
+		: createLayaRouter();
 	return jgentExtension(router, skills);
+}
+
+/**
+ * Routes through a local Laya model instead of the Jev API. The model is
+ * loaded once, on the first `need` call, and reused for the session.
+ */
+export function createLayaRouter(decide: typeof callLaya = callLaya): JgentRouter {
+	return async (description, tools) => {
+		const selected = new Set<string>();
+		for (const batch of batchTools(tools, LAYA_TOKEN_BUDGET)) {
+			const response = await decide(buildJevRequest(description, batch));
+			for (const id of selectTools(response, THRESHOLD)) selected.add(id);
+		}
+		return [...selected];
+	};
 }
 
 export default function jgent(pi: ExtensionAPI): void {
