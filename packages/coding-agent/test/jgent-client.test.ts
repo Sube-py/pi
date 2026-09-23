@@ -5,7 +5,7 @@ import type { JevRequest } from "../examples/extensions/jgent-routing.ts";
 const request: JevRequest = {
 	state: "Task:\nfind the port",
 	model: "jev-latest",
-	questions: { read: { type: "noul", instructions: "Does accomplishing the task require the tool read?" } },
+	questions: { group0: { type: "choice", instructions: "Which tool?", criteria: { read: "Read a file" } } },
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -21,7 +21,7 @@ describe("callJev", () => {
 				auth: new Headers(init?.headers).get("authorization") ?? undefined,
 				body: JSON.parse(String(init?.body)),
 			};
-			return jsonResponse({ answers: { read: { type: "noul", noul: 0.8 } } });
+			return jsonResponse({ answers: { group0: { type: "choice", choice: "read", probabilities: { read: 0.8 } } } });
 		};
 
 		const response = await callJev(request, { apiKey: "secret", fetch: fetchMock, timeoutMs: 1000 });
@@ -29,7 +29,7 @@ describe("callJev", () => {
 		expect(captured.url).toBe("https://api.typesafe.ai/v1/systemone");
 		expect(captured.auth).toBe("Bearer secret");
 		expect(captured.body).toEqual(request);
-		expect(response.answers.read?.noul).toBe(0.8);
+		expect(response.answers.group0?.probabilities.read).toBe(0.8);
 	});
 
 	it("throws with the status when Jev returns an error", async () => {

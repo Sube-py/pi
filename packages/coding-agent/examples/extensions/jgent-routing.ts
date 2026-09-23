@@ -3,74 +3,69 @@ export interface JgentTool {
 	description: string;
 }
 
-export interface JevNoulAnswer {
-	type: "noul";
-	noul: number;
+export interface JevChoiceAnswer {
+	type: "choice";
+	choice: string;
+	probabilities: Record<string, number>;
 }
 
 export interface JevResponse {
-	answers: Record<string, JevNoulAnswer>;
+	answers: Record<string, JevChoiceAnswer>;
+}
+
+export interface ChoiceQuestion {
+	type: "choice";
+	instructions: string;
+	criteria: Record<string, string>;
 }
 
 export interface JevRequest {
 	state: string;
 	model: string;
-	questions: Record<string, { type: "noul"; instructions: string }>;
+	questions: Record<string, ChoiceQuestion>;
 }
 
 export const THRESHOLD = 0.5;
 
 /**
- * One Jev call classifies every tool independently. The state carries the
- * model's own description of the task plus the registry listing; each noul
- * asks whether that one tool is required. Jev evaluates the questions in
- * parallel against the same state, so the count barely changes latency.
+ * How many tools go in one choice question. Laya recommends staying near 20
+ * options per choice, and the question head caps the option text at 192 tokens.
+ */
+export const CHOICE_GROUP_SIZE = 20;
+
+const NONE = "none";
+
+/**
+ * The state carries only the task, so it stays far inside the 512-token
+ * truncation. The tools live in the choice options, grouped so each question
+ * stays small, and every group is asked in the same call.
  */
 export function buildJevRequest(description: string, tools: JgentTool[]): JevRequest {
-	const listing = tools.map((tool) => `${tool.id}: ${tool.description}`).join("\n");
 	const questions: JevRequest["questions"] = {};
-	for (const tool of tools) {
-		questions[tool.id] = {
-			type: "noul",
-			instructions: `Does accomplishing the task require the tool ${tool.id}?`,
+	for (let start = 0; start < tools.length; start += CHOICE_GROUP_SIZE) {
+		const group = tools.slice(start, start + CHOICE_GROUP_SIZE);
+		const criteria: Record<string, string> = { [NONE]: "None of these tools is needed" };
+		for (const tool of group) criteria[tool.id] = tool.description;
+		questions[`group${start / CHOICE_GROUP_SIZE}`] = {
+			type: "choice",
+			instructions: "Which of these tools does the task require? Choose none if not one of them.",
+			criteria,
 		};
 	}
-	return {
-		state: `Task:\n${description}\n\nTools:\n${listing}`,
-		model: "jev-latest",
-		questions,
-	};
-}
-
-/** A tool is selected only when its probability strictly exceeds the threshold. */
-export function selectTools(response: JevResponse, threshold: number): string[] {
-	return Object.entries(response.answers)
-		.filter(([, answer]) => answer.noul > threshold)
-		.map(([id]) => id);
-}
-
-/** Rough token estimate. Jev's budget is exact; underestimating density keeps batches safely inside it. */
-function estimateTokens(request: JevRequest): number {
-	return Math.ceil(JSON.stringify(request).length / 4);
+	return { state: description, model: "jev-latest", questions };
 }
 
 /**
- * Split tools into batches whose Jev request fits within maxTokens.
- * Each noul is evaluated independently, so unioning the per-batch selections
- * gives the same result as one call.
+ * A tool is selected when its share of its group's probability is above the
+ * threshold. `none` is never a tool, so a group where nothing fits selects
+ * nothing.
  */
-export function batchTools(tools: JgentTool[], maxTokens: number): JgentTool[][] {
-	const batches: JgentTool[][] = [];
-	let current: JgentTool[] = [];
-	for (const tool of tools) {
-		const candidate = [...current, tool];
-		if (current.length > 0 && estimateTokens(buildJevRequest("", candidate)) > maxTokens) {
-			batches.push(current);
-			current = [tool];
-		} else {
-			current = candidate;
+export function selectTools(response: JevResponse, threshold: number): string[] {
+	const selected: string[] = [];
+	for (const answer of Object.values(response.answers)) {
+		for (const [id, probability] of Object.entries(answer.probabilities)) {
+			if (id !== NONE && probability > threshold) selected.push(id);
 		}
 	}
-	if (current.length > 0) batches.push(current);
-	return batches;
+	return selected;
 }

@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-a
 import { Type } from "typebox";
 import { callJev, type JevClientOptions } from "./jgent-client.ts";
 import { callLaya } from "./jgent-laya.ts";
-import { batchTools, buildJevRequest, type JgentTool, selectTools, THRESHOLD } from "./jgent-routing.ts";
+import { buildJevRequest, type JgentTool, selectTools, THRESHOLD } from "./jgent-routing.ts";
 
 export type JgentRouter = (description: string, tools: JgentTool[]) => Promise<string[]>;
 
@@ -10,8 +10,6 @@ export type JgentRouter = (description: string, tools: JgentTool[]) => Promise<s
 // added on top of them, which are what grow the context without bound.
 const BUILTIN_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls", "powershell"];
 const RESIDENT_TOOLS = ["need", ...BUILTIN_TOOLS];
-const JEV_TOKEN_BUDGET = 64_000;
-
 const NEED_PARAMETERS = Type.Object({
 	description: Type.String({ description: "What you are trying to accomplish right now" }),
 });
@@ -33,14 +31,10 @@ function registryTools(pi: ExtensionAPI): JgentTool[] {
  * call stays inside Jev's context budget and unions the selections. A failure
  * in any batch rejects, which the need tool turns into an error result.
  */
-export function createJevRouter(options: JevClientOptions & { maxTokens: number }): JgentRouter {
+export function createJevRouter(options: JevClientOptions): JgentRouter {
 	return async (description, tools) => {
-		const selected = new Set<string>();
-		for (const batch of batchTools(tools, options.maxTokens)) {
-			const response = await callJev(buildJevRequest(description, batch), options);
-			for (const id of selectTools(response, THRESHOLD)) selected.add(id);
-		}
-		return [...selected];
+		const response = await callJev(buildJevRequest(description, tools), options);
+		return selectTools(response, THRESHOLD);
 	};
 }
 
@@ -98,17 +92,9 @@ export function jgentExtension(router: JgentRouter, skills: JgentTool[] = []): E
 	};
 }
 
-/**
- * Laya truncates its state at 512 tokens, so a batch has to stay well under
- * that or the tools at the end of the listing are silently dropped.
- */
-const LAYA_TOKEN_BUDGET = 400;
-
 export function defaultJgentExtension(skills: JgentTool[] = []): ExtensionFactory {
 	const apiKey = process.env.TYPESAFE_API_KEY;
-	const router = apiKey
-		? createJevRouter({ apiKey, fetch, timeoutMs: 10_000, maxTokens: JEV_TOKEN_BUDGET })
-		: createLayaRouter();
+	const router = apiKey ? createJevRouter({ apiKey, fetch, timeoutMs: 10_000 }) : createLayaRouter();
 	return jgentExtension(router, skills);
 }
 
@@ -118,12 +104,8 @@ export function defaultJgentExtension(skills: JgentTool[] = []): ExtensionFactor
  */
 export function createLayaRouter(decide: typeof callLaya = callLaya): JgentRouter {
 	return async (description, tools) => {
-		const selected = new Set<string>();
-		for (const batch of batchTools(tools, LAYA_TOKEN_BUDGET)) {
-			const response = await decide(buildJevRequest(description, batch));
-			for (const id of selectTools(response, THRESHOLD)) selected.add(id);
-		}
-		return [...selected];
+		const response = await decide(buildJevRequest(description, tools));
+		return selectTools(response, THRESHOLD);
 	};
 }
 
