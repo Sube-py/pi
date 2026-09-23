@@ -6,17 +6,25 @@ import { batchTools, buildJevRequest, type JgentTool, selectTools, THRESHOLD } f
 
 export type JgentRouter = (description: string, tools: JgentTool[]) => Promise<string[]>;
 
-const RESIDENT_TOOLS = ["bash", "need"];
+// Pi's own tools stay with the model. jgent only gates the tools and skills
+// added on top of them, which are what grow the context without bound.
+const BUILTIN_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls", "powershell"];
+const RESIDENT_TOOLS = ["need", ...BUILTIN_TOOLS];
 const JEV_TOKEN_BUDGET = 64_000;
 
 const NEED_PARAMETERS = Type.Object({
 	description: Type.String({ description: "What you are trying to accomplish right now" }),
 });
 
+function isBuiltin(name: string): boolean {
+	return BUILTIN_TOOLS.includes(name);
+}
+
+/** Tools jgent routes: everything registered beyond pi's built-in set. */
 function registryTools(pi: ExtensionAPI): JgentTool[] {
 	return pi
 		.getAllTools()
-		.filter((tool) => !RESIDENT_TOOLS.includes(tool.name))
+		.filter((tool) => !isBuiltin(tool.name) && tool.name !== "need")
 		.map((tool) => ({ id: tool.name, description: tool.description }));
 }
 

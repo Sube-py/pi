@@ -1,7 +1,9 @@
 import { fauxAssistantMessage, fauxToolCall, getCurrentTools, type TranscriptContext } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
 import { describe, expect, it } from "vitest";
-import { createLayaRouter, defaultJgentExtension, jgentExtension } from "../../examples/extensions/jgent.ts";
+import { defaultJgentExtension, jgentExtension } from "../../examples/extensions/jgent.ts";
 import type { JgentTool } from "../../examples/extensions/jgent-routing.ts";
+import type { ExtensionAPI } from "../../src/index.ts";
 import { createHarness } from "./harness.ts";
 
 function toolNames(context: TranscriptContext): string[] {
@@ -11,7 +13,7 @@ function toolNames(context: TranscriptContext): string[] {
 }
 
 describe("jgent extension", () => {
-	it("exposes only bash and need until a turn asks for tools", async () => {
+	it("keeps the built-in tools resident and gates only added tools", async () => {
 		const router = async (): Promise<string[]> => [];
 		const harness = await createHarness({ extensionFactories: [jgentExtension(router)] });
 		try {
@@ -25,7 +27,7 @@ describe("jgent extension", () => {
 
 			await harness.session.prompt("hello");
 
-			expect(seen).toEqual([["bash", "need"]]);
+			expect(seen[0]).toEqual(expect.arrayContaining(["bash", "need", "read", "edit", "write"]));
 		} finally {
 			harness.cleanup();
 		}
@@ -55,9 +57,9 @@ describe("jgent extension", () => {
 
 			await harness.session.prompt("go");
 
-			expect(routed).toEqual([{ description: "read the config", ids: expect.arrayContaining(["read"]) }]);
-			expect(seen[0]).toEqual(["bash", "need"]);
-			expect(seen[1]).toEqual(["bash", "need", "read"]);
+			expect(routed).toEqual([{ description: "read the config", ids: [] }]);
+			expect(seen[0]).toEqual(["bash", "edit", "find", "grep", "ls", "need", "powershell", "read", "write"]);
+			expect(seen[1]).toEqual(["bash", "edit", "find", "grep", "ls", "need", "powershell", "read", "write"]);
 
 			const seenAfter: string[][] = [];
 			harness.setResponses([
@@ -68,7 +70,7 @@ describe("jgent extension", () => {
 			]);
 			await harness.session.prompt("and now");
 
-			expect(seenAfter).toEqual([["bash", "need"]]);
+			expect(seenAfter).toEqual([["bash", "edit", "find", "grep", "ls", "need", "powershell", "read", "write"]]);
 		} finally {
 			harness.cleanup();
 		}
@@ -97,8 +99,8 @@ describe("jgent extension", () => {
 			await harness.session.prompt("go");
 
 			expect(seen).toEqual([
-				["bash", "need"],
-				["bash", "need"],
+				["bash", "edit", "find", "grep", "ls", "need", "powershell", "read", "write"],
+				["bash", "edit", "find", "grep", "ls", "need", "powershell", "read", "write"],
 			]);
 			const result = harness.session.messages.find((message) => message.role === "toolResult");
 			expect(JSON.stringify(result)).toContain("timed out");
@@ -146,45 +148,48 @@ it("builds the default router from TYPESAFE_API_KEY", async () => {
 
 		await harness.session.prompt("hi");
 
-		expect(seen).toEqual([["bash", "need"]]);
+		expect(seen).toEqual([["bash", "edit", "find", "grep", "ls", "need", "powershell", "read", "write"]]);
 	} finally {
 		delete process.env.TYPESAFE_API_KEY;
 		harness.cleanup();
 	}
 });
 
-it("uses the local Laya router when no TypeSafe key is set", async () => {
-	delete process.env.TYPESAFE_API_KEY;
-	let layaCalls = 0;
-	const callLaya = async (request: { questions: Record<string, unknown> }) => {
-		layaCalls += 1;
-		const answers: Record<string, { type: "noul"; noul: number }> = {};
-		for (const id of Object.keys(request.questions)) {
-			answers[id] = { type: "noul", noul: id === "read" ? 0.9 : 0.1 };
-		}
-		return { answers };
+it("loads an external tool the router selects while the built-ins stay resident", async () => {
+	const registerExternal = (pi: ExtensionAPI) => {
+		pi.registerTool({
+			name: "query_db",
+			label: "Query DB",
+			description: "Run a database query",
+			parameters: Type.Object({}),
+			execute: async () => ({ content: [{ type: "text", text: "rows" }], details: {} }),
+		});
 	};
-	const router = createLayaRouter(callLaya);
-	const harness = await createHarness({ extensionFactories: [jgentExtension(router)] });
+	const router = async (_description: string, tools: JgentTool[]): Promise<string[]> => {
+		expect(tools.map((tool) => tool.id)).toEqual(["query_db"]);
+		return ["query_db"];
+	};
+	const harness = await createHarness({ extensionFactories: [registerExternal, jgentExtension(router)] });
 	try {
 		const seen: string[][] = [];
 		harness.setResponses([
 			(context) => {
 				seen.push(toolNames(context));
-				return fauxAssistantMessage(fauxToolCall("need", { description: "read the config" }), {
+				return fauxAssistantMessage(fauxToolCall("need", { description: "check the database" }), {
 					stopReason: "toolUse",
 				});
 			},
 			(context) => {
 				seen.push(toolNames(context));
-				return fauxAssistantMessage("read it");
+				return fauxAssistantMessage("checked");
 			},
 		]);
 
 		await harness.session.prompt("go");
 
-		expect(layaCalls).toBeGreaterThan(0);
-		expect(seen[1]).toContain("read");
+		expect(seen[0]).not.toContain("query_db");
+		expect(seen[1]).toContain("query_db");
+		expect(seen[1]).toEqual(expect.arrayContaining(["bash", "read", "edit", "write"]));
 	} finally {
 		harness.cleanup();
 	}

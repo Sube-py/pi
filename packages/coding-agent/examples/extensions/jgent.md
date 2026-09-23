@@ -1,7 +1,7 @@
 # jgent
 
-Routes tool selection through Jev so the model only carries `bash` and `need`
-until it asks for more.
+Routes tool selection through Jev so the model keeps pi's built-in tools, and only tools and skills added
+on top of them are loaded when it asks.
 
 ## Enable
 
@@ -16,7 +16,7 @@ Set `TYPESAFE_API_KEY` to use the TypeSafe Jev API instead.
 
 ## What changes
 
-The model sees two tools: `bash` and `need`. When it calls `need` with a
+The model keeps pi's built-in tools (`read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`) plus `need`. When it calls `need` with a
 description of what it is trying to do, jgent asks Jev which of the configured
 tools that requires and enables the selected ones for the next turn. They are
 removed again at the end of that turn. Tools run exactly as they do without
