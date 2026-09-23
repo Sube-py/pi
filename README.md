@@ -14,21 +14,26 @@
 
 ## jgent
 
-This fork routes tool selection through [Jev](https://typesafe.ai), a small
-decision model, so the model no longer carries every tool schema on every
-turn. The model keeps pi's built-in tools and gains `need`. When it calls
-`need` with a description of what it is trying to do, jgent asks Jev which of
-the configured tools that requires and enables the selected ones for the next
+This is a fork of [earendil-works/pi](https://github.com/earendil-works/pi).
+It is not a pull request against upstream.
+
+jgent routes extra tools through [Jev](https://typesafe.ai) so the model no
+longer carries every MCP / extension / skill schema on every turn. Pi's
+built-in tools stay resident. The model gains `need`. When it calls `need`
+with a description of what it is trying to do, jgent asks Jev which of the
+configured tools that requires and enables the selected ones for the next
 turn only. They are removed again at the end of that turn. Tool execution is
 unchanged: selected tools run through pi's normal path.
 
+To use jgent on stock pi, install the package, not this whole fork:
+
 ```bash
-./pi-test.sh -e packages/coding-agent/examples/extensions/jgent.ts
+pi install git:github.com/Sube-py/jgent
 ```
 
-Decisions run locally through [Laya](https://github.com/receptron/laya), an
-open-source Jev-compatible model. Set `TYPESAFE_API_KEY` to use the TypeSafe
-Jev API instead.
+The package lives at [Sube-py/jgent](https://github.com/Sube-py/jgent).
+Decisions run locally through [Laya](https://github.com/receptron/laya).
+Set `TYPESAFE_API_KEY` to use the TypeSafe Jev API instead.
 
 See [packages/coding-agent/examples/extensions/jgent.md](packages/coding-agent/examples/extensions/jgent.md)
 for what the extension changes and its current limits.

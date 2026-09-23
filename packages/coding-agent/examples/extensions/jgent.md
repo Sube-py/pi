@@ -3,9 +3,16 @@
 Routes tool selection through Jev so the model keeps pi's built-in tools, and only tools and skills added
 on top of them are loaded when it asks.
 
+This is a fork feature. It is not proposed as an upstream pull request.
+The installable package is [Sube-py/jgent](https://github.com/Sube-py/jgent).
+
 ## Enable
 
-Load the extension:
+On stock pi, install the package:
+
+    pi install git:github.com/Sube-py/jgent
+
+From this fork, load the extension:
 
     pi -e packages/coding-agent/examples/extensions/jgent.ts
 
