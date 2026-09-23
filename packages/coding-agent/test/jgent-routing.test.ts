@@ -17,7 +17,6 @@ describe("buildJevRequest", () => {
 		expect(question?.type).toBe("choice");
 		expect(question?.criteria.read).toBe("Read a file");
 		expect(question?.criteria.grep).toBe("Search file contents");
-		expect(question?.criteria.none).toBeDefined();
 	});
 
 	it("splits a long registry into groups of a fixed size", () => {
@@ -28,8 +27,8 @@ describe("buildJevRequest", () => {
 		const request = buildJevRequest("task", many);
 
 		expect(Object.keys(request.questions)).toEqual(["group0", "group1"]);
-		expect(Object.keys(request.questions.group0?.criteria ?? {})).toHaveLength(CHOICE_GROUP_SIZE + 1);
-		expect(Object.keys(request.questions.group1?.criteria ?? {})).toHaveLength(6);
+		expect(Object.keys(request.questions.group0?.criteria ?? {})).toHaveLength(CHOICE_GROUP_SIZE);
+		expect(Object.keys(request.questions.group1?.criteria ?? {})).toHaveLength(5);
 	});
 });
 
@@ -38,8 +37,8 @@ describe("selectTools", () => {
 		const selected = selectTools(
 			{
 				answers: {
-					group0: { type: "choice", choice: "read", probabilities: { read: 0.9, grep: THRESHOLD, none: 0.1 } },
-					group1: { type: "choice", choice: "edit", probabilities: { edit: 0.51, write: 0.2, none: 0.29 } },
+					group0: { type: "choice", choice: "read", probabilities: { read: 0.9, grep: THRESHOLD } },
+					group1: { type: "choice", choice: "edit", probabilities: { edit: 0.71, write: 0.29 } },
 				},
 			},
 			THRESHOLD,
@@ -48,9 +47,11 @@ describe("selectTools", () => {
 		expect(selected.sort()).toEqual(["edit", "read"]);
 	});
 
-	it("selects nothing when none takes the probability", () => {
+	it("selects nothing when no tool clears the threshold", () => {
 		const selected = selectTools(
-			{ answers: { group0: { type: "choice", choice: "none", probabilities: { read: 0.1, none: 0.9 } } } },
+			{
+				answers: { group0: { type: "choice", choice: "read", probabilities: { read: 0.4, grep: 0.3, edit: 0.3 } } },
+			},
 			THRESHOLD,
 		);
 		expect(selected).toEqual([]);
